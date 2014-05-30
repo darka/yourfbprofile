@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <title>Facebook Profile Stats</title>
+    <script>
+       function printFriends(response) {
+         var data = response.data;
+         var dataLength = data.length;
+         var posts = [];
+
+         for (var i = 0; i < dataLength; i++) {
+           //posts.push(data[i].description);
+           $('body').append('<p>' + data[i].description + '</p>');
+         }
+
+         //var postsLength = posts.length;
+         //for (var i = 0; i < postsLength; i++) {
+         //  $('body').append('<p>' + posts[i] + '</p>');
+         //}
+       }
+       function paginatedApiCall(apiCall, processFunction, totalPages, currentPage) {
+         // Default values
+         if (typeof(currentPage) === 'undefined') currentPage = 0;
+         if (typeof(totalPages) === 'undefined') totalPages = 3;
+
+         FB.api(
+           apiCall,
+           function (response) {
+             if (response && !response.error) {
+               processFunction(response);
+               if (totalPages == -1 || currentPage < totalPages)
+               {
+                 // Call recursively until all requested pages are processed.
+                 if (response.paging.next) {
+                   paginatedApiCall(
+                     response.paging.next,
+                     processFunction,
+                     totalPages, 
+                     currentPage+1);
+                 }
+               }
+             }
+           }
+         );
+       }
+       $(document).ready(function() {
+         $.ajaxSetup({ cache: true });
+         $.getScript('//connect.facebook.net/en_UK/all.js', function() {
+           FB.init({
+             appId      : '674865822550762',
+             xfbml      : true,
+             version    : 'v2.0'
+           });
+           FB.login(function() { 
+             paginatedApiCall('/me/posts', printFriends);
+           }, {scope: 'publish_actions,read_stream'}); 
+         });
+           
+       });
+    </script>
+  </head>
+  <body>
+  </body>
+</html>
