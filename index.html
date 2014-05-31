@@ -4,6 +4,82 @@
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <title>Facebook Profile Stats</title>
     <script>
+       function buildScoreMap(response, scoreMap) {
+         var data = response.data;
+         var dataLength = data.length;
+         var debugIds = [ ];
+
+         for (var i = 0; i < dataLength; i++) {
+           var post = data[i];
+
+           if (post.comments)
+           {
+             var commentMap = {}
+
+             // We disregard how many times someone commented on your status,
+             // no matter how many comments, score is only increased by 1
+             for (var j = 0; j < post.comments.data.length; ++j)
+             {
+               var person = post.comments.data[j].from;
+               commentMap[person.id] = person;
+             }
+
+             for (var id in commentMap) {
+               if (!commentMap.hasOwnProperty(id)) {
+                 continue;
+               }
+               if (id in scoreMap) {
+                 scoreMap[id].score += 1;
+               } else {
+                 scoreMap[id] = { 'score': 1, 'person': commentMap[id] };
+               }
+             }
+           }
+
+           if (post.likes)
+           {
+             for (var j = 0; j < post.likes.data.length; ++j)
+             {
+               var person = post.likes.data[j];
+               for (var k = 0; k < debugIds.length; k++) {
+                 // debug
+                 var debugId = debugIds[k];
+                 if (person.id == debugId)
+                 {
+                   alert(':/');
+                 }
+               }
+               if (person.id in scoreMap) {
+                 scoreMap[person.id].score += 1;
+               } else {
+                 scoreMap[person.id] = { 'score': 1, 'person': person };
+               }
+             }
+           }
+         }
+
+         // TODO: add shares
+
+         //var postsLength = posts.length;
+         //for (var i = 0; i < postsLength; i++) {
+         //  $('body').append('<p>' + posts[i] + '</p>');
+         //}
+       }
+
+       function processScoreMap(scoreMap) {
+         var sortable = [];
+         for (var id in scoreMap) {
+           if (!scoreMap.hasOwnProperty(id)) {
+             continue;
+           }
+           sortable.push([scoreMap[id].score, id, scoreMap[id].person])
+         }
+         sortable.sort(function(a, b) {return b[0] - a[0]})
+         for (var i = 0; i < sortable.length; ++i) {
+           $('body').append('<p>' + sortable[i][2].name + ' (' + sortable[i][1] + ') ' + sortable[i][0] + '</p>');
+         }
+       }
+
        function printFriends(response) {
          var data = response.data;
          var dataLength = data.length;
@@ -19,7 +95,7 @@
          //  $('body').append('<p>' + posts[i] + '</p>');
          //}
        }
-       function paginatedApiCall(apiCall, processFunction, totalPages, currentPage) {
+       function paginatedApiCall(apiCall, processFunction, callAfter, totalPages, currentPage) {
          // Default values
          if (typeof(currentPage) === 'undefined') currentPage = 0;
          if (typeof(totalPages) === 'undefined') totalPages = 3;
@@ -27,19 +103,27 @@
          FB.api(
            apiCall,
            function (response) {
+             var continued = false;
              if (response && !response.error) {
+               $('body').append('<p>api call...</p>');
                processFunction(response);
                if (totalPages == -1 || currentPage < totalPages)
                {
                  // Call recursively until all requested pages are processed.
-                 if (response.paging.next) {
+                 if (response.paging && response.paging.next) {
+                   continued = true;
                    paginatedApiCall(
                      response.paging.next,
                      processFunction,
+                     callAfter,
                      totalPages, 
                      currentPage+1);
                  }
                }
+             }
+             if (continued == false) {
+               $('body').append('<p>call after...</p>');
+               callAfter();
              }
            }
          );
@@ -53,7 +137,35 @@
              version    : 'v2.0'
            });
            FB.login(function() { 
-             paginatedApiCall('/me/posts', printFriends);
+             var scoreMap = {};
+             paginatedApiCall(
+               '/me/posts?limit=200', 
+               function(response) { 
+                 buildScoreMap(response, scoreMap); 
+               }, 
+               function() {
+                 processScoreMap(scoreMap);
+                 //paginatedApiCall(
+                 //  '/me/links', 
+                 //  function(response) { 
+                 //    buildScoreMap(response, scoreMap); 
+                 //  }, 
+                 //  function() {
+
+                 //    paginatedApiCall(
+                 //      '/me/statuses', 
+                 //      function(response) { 
+                 //        buildScoreMap(response, scoreMap); 
+                 //      }, 
+                 //      function() {
+                 //        processScoreMap(scoreMap);
+                 //      }
+                 //    );
+
+                 //  }
+                 //);
+               }, -1
+             );
            }, {scope: 'publish_actions,read_stream'}); 
          });
            
